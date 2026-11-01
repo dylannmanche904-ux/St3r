@@ -1,0 +1,111 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Event = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("SetRPNameColor")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- COULEURS
+local BLACK = Color3.fromRGB(0, 0, 0)
+local BLUE = Color3.fromRGB(0, 100, 255)
+
+local isRunning = false
+local isLocked = false
+local speed = 0.40
+
+-- INTERFACE ST3R
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ST3R"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ST3RButton"
+toggleButton.Size = UDim2.fromOffset(160, 50)
+toggleButton.Position = UDim2.new(0, 20, 0.5, -25)
+toggleButton.BackgroundColor3 = BLACK
+toggleButton.TextColor3 = Color3.new(1, 1, 1)
+toggleButton.TextSize = 18
+toggleButton.Font = Enum.Font.SourceSansBold
+toggleButton.Text = "ST3R : OFF"
+toggleButton.Active = true
+toggleButton.Draggable = true
+toggleButton.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = toggleButton
+
+-- CADENAS
+local lockButton = Instance.new("TextButton")
+lockButton.Name = "LockButton"
+lockButton.Size = UDim2.fromOffset(30, 30)
+lockButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+lockButton.TextColor3 = Color3.new(1, 1, 1)
+lockButton.TextSize = 20
+lockButton.Text = "🔓"
+lockButton.Parent = screenGui
+
+local lockCorner = Instance.new("UICorner")
+lockCorner.CornerRadius = UDim.new(0, 6)
+lockCorner.Parent = lockButton
+
+-- CADENAS ATTACHÉ AU BOUTON
+RunService.RenderStepped:Connect(function()
+    lockButton.Position = UDim2.fromOffset(
+        toggleButton.AbsolutePosition.X + toggleButton.AbsoluteSize.X + 5,
+        toggleButton.AbsolutePosition.Y + 10
+    )
+end)
+
+-- VERROUILLAGE
+lockButton.MouseButton1Click:Connect(function()
+    isLocked = not isLocked
+    toggleButton.Draggable = not isLocked
+    lockButton.Text = isLocked and "🔒" or "🔓"
+end)
+
+-- ANIMATION NOIR / BLEU DU RP NAME
+task.spawn(function()
+    local progress = 0
+    local direction = 1
+
+    while screenGui.Parent do
+        if isRunning then
+            progress += speed * direction
+
+            if progress >= 1 then
+                progress = 1
+                direction = -1
+            elseif progress <= 0 then
+                progress = 0
+                direction = 1
+            end
+
+            local color = BLACK:Lerp(BLUE, progress)
+
+            pcall(function()
+                Event:FireServer(color)
+            end)
+
+            task.wait(0.10)
+        else
+            task.wait(0.2)
+        end
+    end
+end)
+
+-- ON / OFF
+toggleButton.MouseButton1Click:Connect(function()
+    isRunning = not isRunning
+
+    if isRunning then
+        toggleButton.Text = "ST3R : ON"
+        toggleButton.BackgroundColor3 = BLUE
+    else
+        toggleButton.Text = "ST3R : OFF"
+        toggleButton.BackgroundColor3 = BLACK
+    end
+end)
