@@ -1,0 +1,58 @@
+-- ST3R ULTIMATE RESET
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "ST3R_ULTIMATE"
+gui.ResetOnSpawn = false
+gui.Parent = game:GetService("CoreGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0,170,0,115)
+frame.Position = UDim2.new(0.5,-85,0.4,0)
+frame.BackgroundColor3 = Color3.fromRGB(12,12,12)
+frame.Active = true
+frame.Draggable = true
+frame.Parent = gui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0,10)
+corner.Parent = frame
+
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(220,20,45)
+stroke.Thickness = 1.5
+stroke.Parent = frame
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1,0,0,32)
+title.BackgroundTransparency = 1
+title.Text = "ST3R ULTIMATE"
+title.TextColor3 = Color3.fromRGB(255,25,45)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 14
+title.Parent = frame
+
+local reset = Instance.new("TextButton")
+reset.Size = UDim2.new(0.8,0,0,30)
+reset.Position = UDim2.new(0.1,0,0.42,0)
+reset.BackgroundColor3 = Color3.fromRGB(180,20,35)
+reset.Text = "RESET"
+reset.TextColor3 = Color3.new(1,1,1)
+reset.Font = Enum.Font.GothamBold
+reset.TextSize = 12
+reset.Parent = frame
+
+local resetCorner = Instance.new("UICorner")
+resetCorner.CornerRadius = UDim.new(0,7)
+resetCorner.Parent = reset
+
+reset.MouseButton1Click:Connect(function()
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+    if humanoid then
+        humanoid.Health = 0
+    end
+end)
