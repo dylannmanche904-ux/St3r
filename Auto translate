@@ -1,0 +1,340 @@
+
+-- ST3R AUTO TRANSLATOR MINI
+-- Interface mobile déplaçable
+
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local UIS = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+
+local Me = Players.LocalPlayer
+local Request = request or http_request or (syn and syn.request)
+
+if not Request then
+    warn("ST3R : HTTP indisponible")
+    return
+end
+
+local old = CoreGui:FindFirstChild("ST3R_TRANSLATOR")
+if old then old:Destroy() end
+
+local selected = nil
+local translations = {}
+local active = {}
+local lastCall = 0
+
+-- INTERFACE MINI
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "ST3R_TRANSLATOR"
+gui.ResetOnSpawn = false
+gui.Parent = CoreGui
+
+local panel = Instance.new("Frame")
+panel.Size = UDim2.fromOffset(175,75)
+panel.Position = UDim2.new(0.5,-87,0,65)
+panel.BackgroundColor3 = Color3.fromRGB(22,22,29)
+panel.BorderSizePixel = 0
+panel.Active = true
+panel.Parent = gui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0,10)
+corner.Parent = panel
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1,0,0,25)
+title.BackgroundTransparency = 1
+title.Text = "ST3R TRANSLATOR"
+title.TextColor3 = Color3.fromRGB(255,80,160)
+title.TextSize = 12
+title.Font = Enum.Font.GothamBold
+title.Parent = panel
+
+local status = Instance.new("TextLabel")
+status.Position = UDim2.fromOffset(3,25)
+status.Size = UDim2.new(1,-6,0,20)
+status.BackgroundTransparency = 1
+status.Text = "Touche un joueur"
+status.TextColor3 = Color3.new(1,1,1)
+status.TextSize = 10
+status.Parent = panel
+
+local button = Instance.new("TextButton")
+button.Position = UDim2.fromOffset(32,49)
+button.Size = UDim2.fromOffset(110,21)
+button.Text = "Désélectionner"
+button.TextSize = 10
+button.Font = Enum.Font.GothamBold
+button.TextColor3 = Color3.new(1,1,1)
+button.BackgroundColor3 = Color3.fromRGB(170,45,100)
+button.Parent = panel
+
+local buttonCorner = Instance.new("UICorner")
+buttonCorner.CornerRadius = UDim.new(0,6)
+buttonCorner.Parent = button
+
+-- DÉPLACEMENT MOBILE
+
+local dragging = false
+local dragStart
+local startPosition
+
+panel.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch
+    or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPosition = panel.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if dragging and (
+        input.UserInputType == Enum.UserInputType.Touch
+        or input.UserInputType == Enum.UserInputType.MouseMovement
+    ) then
+        local delta = input.Position - dragStart
+
+        panel.Position = UDim2.new(
+            startPosition.X.Scale,
+            startPosition.X.Offset + delta.X,
+            startPosition.Y.Scale,
+            startPosition.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- NETTOYAGE
+
+local function clearTranslations()
+    for _, item in pairs(translations) do
+        if item.gui then
+            item.gui:Destroy()
+        end
+    end
+
+    table.clear(translations)
+    table.clear(active)
+end
+
+local function selectPlayer(player)
+    selected = player
+    clearTranslations()
+
+    if player then
+        status.Text = "Joueur : "..player.Name
+    else
+        status.Text = "Touche un joueur"
+    end
+end
+
+button.Activated:Connect(function()
+    selectPlayer(nil)
+end)
+
+-- SÉLECTION DU JOUEUR
+
+UIS.InputBegan:Connect(function(input)
+    if input.UserInputType ~= Enum.UserInputType.Touch
+    and input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+        return
+    end
+
+    local pos = input.Position
+    local p = panel.AbsolutePosition
+    local s = panel.AbsoluteSize
+
+    if pos.X >= p.X and pos.X <= p.X+s.X
+    and pos.Y >= p.Y and pos.Y <= p.Y+s.Y then
+        return
+    end
+
+    local camera = workspace.CurrentCamera
+    if not camera then return end
+
+    local ray = camera:ScreenPointToRay(pos.X,pos.Y)
+
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = {Me.Character}
+
+    local result = workspace:Raycast(
+        ray.Origin,
+        ray.Direction * 1000,
+        params
+    )
+
+    if result then
+        local model = result.Instance:FindFirstAncestorOfClass("Model")
+        local player = model and Players:GetPlayerFromCharacter(model)
+
+        if player and player ~= Me then
+            selectPlayer(player)
+        end
+    end
+end)
+
+-- TRADUCTION
+
+local function translate(text)
+    if text == "" then return nil end
+
+    local waitTime = 1.2 - (os.clock() - lastCall)
+    if waitTime > 0 then
+        task.wait(waitTime)
+    end
+
+    lastCall = os.clock()
+
+    local url =
+        "https://api.mymemory.translated.net/get?q="
+        .. HttpService:UrlEncode(text)
+        .. "&langpair=autodetect|fr"
+
+    local success, response = pcall(function()
+        return Request({
+            Url = url,
+            Method = "GET"
+        })
+    end)
+
+    if not success or not response
+    or response.StatusCode ~= 200 then
+        return nil
+    end
+
+    local ok, data = pcall(function()
+        return HttpService:JSONDecode(response.Body)
+    end)
+
+    if not ok or not data.responseData then
+        return nil
+    end
+
+    return data.responseData.translatedText
+end
+
+-- AFFICHAGE TRADUIT
+
+local function makeLabel(source)
+    local adornee = source.Adornee
+
+    if not adornee then
+        return nil
+    end
+
+    local board = Instance.new("BillboardGui")
+    board.Name = "ST3R_Translation"
+    board.Adornee = adornee
+    board.Size = UDim2.fromOffset(280,55)
+    board.StudsOffset = Vector3.new(0,-2,0)
+    board.AlwaysOnTop = true
+    board.MaxDistance = 100
+    board.Parent = gui
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.fromScale(1,1)
+    label.BackgroundColor3 = Color3.fromRGB(15,15,20)
+    label.BackgroundTransparency = 0.1
+    label.TextColor3 = Color3.fromRGB(100,255,150)
+    label.TextStrokeTransparency = 0.2
+    label.TextWrapped = true
+    label.TextScaled = true
+    label.Font = Enum.Font.GothamBold
+    label.Text = "Traduction..."
+    label.Parent = board
+
+    return {
+        gui = board,
+        label = label,
+        original = ""
+    }
+end
+
+-- DÉTECTION DES TEXTES RP
+
+local function scanPlayer()
+    local player = selected
+
+    if not player or not player.Character then
+        return
+    end
+
+    for _, obj in ipairs(player.Character:GetDescendants()) do
+        if obj:IsA("BillboardGui")
+        and obj.Name ~= "ST3R_Translation"
+        and obj.Enabled then
+
+            local parts = {}
+
+            for _, child in ipairs(obj:GetDescendants()) do
+                if (
+                    child:IsA("TextLabel")
+                    or child:IsA("TextButton")
+                    or child:IsA("TextBox")
+                ) and child.Visible then
+
+                    local value = child.Text
+
+                    if value and value ~= "" then
+                        table.insert(parts,value)
+                    end
+                end
+            end
+
+            local phrase = table.concat(parts," ")
+
+            if phrase ~= "" and #phrase < 450 then
+                local entry = translations[obj]
+
+                if not entry then
+                    entry = makeLabel(obj)
+                    if entry then
+                        translations[obj] = entry
+                    end
+                end
+
+                if entry and entry.original ~= phrase
+                and not active[obj] then
+
+                    entry.original = phrase
+                    entry.label.Text = "Traduction..."
+                    active[obj] = true
+
+                    task.spawn(function()
+                        local result = translate(phrase)
+
+                        if selected == player
+                        and entry.gui.Parent
+                        and entry.original == phrase then
+
+                            entry.label.Text =
+                                result or "Traduction impossible"
+                        end
+
+                        active[obj] = nil
+                    end)
+                end
+            end
+        end
+    end
+end
+
+-- BOUCLE PRINCIPALE
+
+while gui.Parent do
+    local success, err = pcall(scanPlayer)
+
+    if not success then
+        warn("ST3R ERROR : "..tostring(err))
+    end
+
+    task.wait(1)
+end
