@@ -1,0 +1,209 @@
+
+-- ST3R MINI RP TRANSLATOR
+-- Version compacte, déplaçable et rétractable
+
+local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
+local UIS = game:GetService("UserInputService")
+
+local requestFunc = request or http_request or (syn and syn.request)
+if not requestFunc then return end
+
+local old = CoreGui:FindFirstChild("ST3R_MINI")
+if old then old:Destroy() end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "ST3R_MINI"
+gui.ResetOnSpawn = false
+gui.Parent = CoreGui
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.fromOffset(220, 205)
+frame.Position = UDim2.new(0.5, -110, 0.35, 0)
+frame.BackgroundColor3 = Color3.fromRGB(22,22,29)
+frame.Active = true
+frame.Parent = gui
+
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0,10)
+
+-- BARRE DU HAUT
+local top = Instance.new("TextButton")
+top.Size = UDim2.new(1,0,0,30)
+top.BackgroundColor3 = Color3.fromRGB(180,45,110)
+top.Text = "ST3R MINI"
+top.TextColor3 = Color3.new(1,1,1)
+top.TextSize = 12
+top.Parent = frame
+
+local toggle = Instance.new("TextButton")
+toggle.Size = UDim2.fromOffset(30,25)
+toggle.Position = UDim2.new(1,-33,0,2)
+toggle.BackgroundColor3 = Color3.fromRGB(90,25,60)
+toggle.Text = "−"
+toggle.TextColor3 = Color3.new(1,1,1)
+toggle.TextSize = 18
+toggle.Parent = frame
+
+-- CONTENU
+local content = Instance.new("Frame")
+content.Position = UDim2.fromOffset(0,32)
+content.Size = UDim2.new(1,0,1,-32)
+content.BackgroundTransparency = 1
+content.Parent = frame
+
+local input = Instance.new("TextBox")
+input.Position = UDim2.fromOffset(7,5)
+input.Size = UDim2.new(1,-14,0,42)
+input.BackgroundColor3 = Color3.fromRGB(40,40,50)
+input.TextColor3 = Color3.new(1,1,1)
+input.PlaceholderText = "Ton texte en français..."
+input.Text = ""
+input.TextWrapped = true
+input.ClearTextOnFocus = false
+input.Parent = content
+
+local languages = {
+    {"Anglais","en"},{"Portugais","pt"},
+    {"Espagnol","es"},{"Allemand","de"},
+    {"Russe","ru"},{"Arabe","ar"},
+    {"Turc","tr"},{"Italien","it"},
+    {"Japonais","ja"},{"Polonais","pl"}
+}
+
+local selected = 1
+
+local lang = Instance.new("TextButton")
+lang.Position = UDim2.fromOffset(7,52)
+lang.Size = UDim2.new(1,-14,0,25)
+lang.BackgroundColor3 = Color3.fromRGB(65,35,65)
+lang.TextColor3 = Color3.new(1,1,1)
+lang.TextSize = 12
+lang.Parent = content
+
+local function updateLang()
+    lang.Text = "Langue : "..languages[selected][1].." ▼"
+end
+updateLang()
+
+lang.Activated:Connect(function()
+    selected = selected % #languages + 1
+    updateLang()
+end)
+
+local translate = Instance.new("TextButton")
+translate.Position = UDim2.fromOffset(7,83)
+translate.Size = UDim2.new(1,-14,0,25)
+translate.BackgroundColor3 = Color3.fromRGB(190,45,110)
+translate.TextColor3 = Color3.new(1,1,1)
+translate.Text = "TRADUIRE"
+translate.TextSize = 12
+translate.Parent = content
+
+local output = Instance.new("TextBox")
+output.Position = UDim2.fromOffset(7,114)
+output.Size = UDim2.new(1,-14,0,25)
+output.BackgroundColor3 = Color3.fromRGB(40,40,50)
+output.TextColor3 = Color3.fromRGB(130,255,170)
+output.Text = ""
+output.TextSize = 12
+output.TextWrapped = true
+output.TextEditable = false
+output.ClearTextOnFocus = false
+output.Parent = content
+
+local copy = Instance.new("TextButton")
+copy.Position = UDim2.fromOffset(7,145)
+copy.Size = UDim2.new(1,-14,0,25)
+copy.BackgroundColor3 = Color3.fromRGB(50,110,80)
+copy.TextColor3 = Color3.new(1,1,1)
+copy.Text = "COPIER POUR RÔLE"
+copy.TextSize = 12
+copy.Parent = content
+
+-- RÉTRACTION
+local collapsed = false
+
+toggle.Activated:Connect(function()
+    collapsed = not collapsed
+    content.Visible = not collapsed
+    frame.Size = collapsed
+        and UDim2.fromOffset(150,30)
+        or UDim2.fromOffset(220,205)
+    toggle.Text = collapsed and "+" or "−"
+end)
+
+-- DÉPLACEMENT AU DOIGT
+local dragging = false
+local dragStart
+local startPos
+local dragInput
+
+top.InputBegan:Connect(function(inputObject)
+    if inputObject.UserInputType == Enum.UserInputType.Touch
+    or inputObject.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = inputObject.Position
+        startPos = frame.Position
+    end
+end)
+
+UIS.InputChanged:Connect(function(inputObject)
+    if dragging and (
+        inputObject.UserInputType == Enum.UserInputType.Touch
+        or inputObject.UserInputType == Enum.UserInputType.MouseMovement
+    ) then
+        local delta = inputObject.Position - dragStart
+        frame.Position = UDim2.new(
+            startPos.X.Scale,startPos.X.Offset+delta.X,
+            startPos.Y.Scale,startPos.Y.Offset+delta.Y
+        )
+    end
+end)
+
+UIS.InputEnded:Connect(function(inputObject)
+    if inputObject.UserInputType == Enum.UserInputType.Touch
+    or inputObject.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+-- TRADUCTION
+translate.Activated:Connect(function()
+    if input.Text == "" then return end
+
+    translate.Text = "..."
+    task.spawn(function()
+        local url = "https://api.mymemory.translated.net/get?q="
+            ..HttpService:UrlEncode(input.Text)
+            .."&langpair=fr|"..languages[selected][2]
+
+        local ok,response = pcall(function()
+            return requestFunc({Url=url,Method="GET"})
+        end)
+
+        if ok and response and response.StatusCode == 200 then
+            local success,data = pcall(function()
+                return HttpService:JSONDecode(response.Body)
+            end)
+
+            if success and data.responseData then
+                output.Text = data.responseData.translatedText or "Erreur"
+            else
+                output.Text = "Erreur traduction"
+            end
+        else
+            output.Text = "Erreur connexion"
+        end
+
+        translate.Text = "TRADUIRE"
+    end)
+end)
+
+copy.Activated:Connect(function()
+    if output.Text ~= "" and setclipboard then
+        setclipboard(output.Text)
+        copy.Text = "COPIÉ !"
+        task.wait(1)
+        copy.Text = "COPIER POUR RÔLE"
+    end
+end)
