@@ -1,0 +1,315 @@
+-- ST3R MINI TRANSLATOR ENGLISH
+
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local UIS = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+
+local Me = Players.LocalPlayer
+local Request = request or http_request or (syn and syn.request)
+
+if not Request then return end
+
+local old = CoreGui:FindFirstChild("ST3R_TRANSLATOR")
+if old then old:Destroy() end
+
+local selected = nil
+local selectionEnabled = false
+local translations = {}
+local active = {}
+
+-- GUI
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "ST3R_TRANSLATOR"
+gui.ResetOnSpawn = false
+gui.Parent = CoreGui
+
+local panel = Instance.new("Frame")
+panel.Size = UDim2.fromOffset(180,100)
+panel.Position = UDim2.new(0.5,-90,0,65)
+panel.BackgroundColor3 = Color3.fromRGB(22,22,29)
+panel.Active = true
+panel.Parent = gui
+
+Instance.new("UICorner",panel).CornerRadius = UDim.new(0,10)
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1,0,0,25)
+title.BackgroundTransparency = 1
+title.Text = "ST3R ENGLISH"
+title.TextColor3 = Color3.fromRGB(255,80,160)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 13
+title.Parent = panel
+
+local status = Instance.new("TextLabel")
+status.Position = UDim2.fromOffset(0,25)
+status.Size = UDim2.new(1,0,0,20)
+status.BackgroundTransparency = 1
+status.Text = "Selection OFF"
+status.TextColor3 = Color3.new(1,1,1)
+status.TextSize = 11
+status.Parent = panel
+
+local toggle = Instance.new("TextButton")
+toggle.Position = UDim2.fromOffset(25,50)
+toggle.Size = UDim2.fromOffset(130,25)
+toggle.Text = "ON / OFF"
+toggle.BackgroundColor3 = Color3.fromRGB(170,45,100)
+toggle.TextColor3 = Color3.new(1,1,1)
+toggle.Font = Enum.Font.GothamBold
+toggle.TextSize = 11
+toggle.Parent = panel
+
+Instance.new("UICorner",toggle).CornerRadius = UDim.new(0,6)
+
+-- COLLAPSE
+
+local collapse = Instance.new("TextButton")
+collapse.Position = UDim2.fromOffset(155,2)
+collapse.Size = UDim2.fromOffset(22,20)
+collapse.Text = "-"
+collapse.TextColor3 = Color3.new(1,1,1)
+collapse.BackgroundTransparency = 1
+collapse.Parent = panel
+
+local collapsed = false
+
+collapse.Activated:Connect(function()
+    collapsed = not collapsed
+    title.Visible = true
+    status.Visible = not collapsed
+    toggle.Visible = not collapsed
+    panel.Size = collapsed
+        and UDim2.fromOffset(180,27)
+        or UDim2.fromOffset(180,100)
+    collapse.Text = collapsed and "+" or "-"
+end)
+
+-- DRAG
+
+local dragging = false
+local dragStart
+local startPosition
+
+panel.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch
+    or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPosition = panel.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if dragging then
+        local delta = input.Position - dragStart
+        panel.Position = UDim2.new(
+            startPosition.X.Scale,
+            startPosition.X.Offset + delta.X,
+            startPosition.Y.Scale,
+            startPosition.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- CLEAN
+
+local function clearTranslations()
+    for _,entry in pairs(translations) do
+        if entry.gui then entry.gui:Destroy() end
+    end
+    table.clear(translations)
+    table.clear(active)
+end
+
+local function selectPlayer(player)
+    selected = player
+    clearTranslations()
+    status.Text = player and ("Player: "..player.Name) or "Selection OFF"
+end
+
+-- ON / OFF
+
+toggle.Activated:Connect(function()
+    selectionEnabled = not selectionEnabled
+
+    if selectionEnabled then
+        toggle.Text = "ON"
+        toggle.BackgroundColor3 = Color3.fromRGB(40,160,80)
+        status.Text = "Click a player"
+    else
+        toggle.Text = "OFF"
+        toggle.BackgroundColor3 = Color3.fromRGB(170,45,100)
+        selectPlayer(nil)
+    end
+end)
+
+-- PLAYER SELECTION
+
+UIS.InputBegan:Connect(function(input)
+    if not selectionEnabled then return end
+
+    if input.UserInputType ~= Enum.UserInputType.Touch
+    and input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+        return
+    end
+
+    local pos = input.Position
+    local p = panel.AbsolutePosition
+    local s = panel.AbsoluteSize
+
+    if pos.X >= p.X and pos.X <= p.X+s.X
+    and pos.Y >= p.Y and pos.Y <= p.Y+s.Y then
+        return
+    end
+
+    local camera = workspace.CurrentCamera
+    if not camera then return end
+
+    local ray = camera:ScreenPointToRay(pos.X,pos.Y)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = {Me.Character}
+
+    local result = workspace:Raycast(ray.Origin,ray.Direction*1000,params)
+
+    if result then
+        local model = result.Instance:FindFirstAncestorOfClass("Model")
+        local player = model and Players:GetPlayerFromCharacter(model)
+
+        if player and player ~= Me then
+            selectPlayer(player)
+        end
+    end
+end)
+
+-- TRANSLATE TO ENGLISH
+
+local function translate(text)
+    local url =
+        "https://api.mymemory.translated.net/get?q="
+        .. HttpService:UrlEncode(text)
+        .. "&langpair=autodetect|en"
+
+    local success,response = pcall(function()
+        return Request({
+            Url = url,
+            Method = "GET"
+        })
+    end)
+
+    if not success or not response or response.StatusCode ~= 200 then
+        return nil
+    end
+
+    local ok,data = pcall(function()
+        return HttpService:JSONDecode(response.Body)
+    end)
+
+    if not ok or not data.responseData then return nil end
+    return data.responseData.translatedText
+end
+
+-- DISPLAY
+
+local function makeLabel(source)
+    local board = Instance.new("BillboardGui")
+    board.Name = "ST3R_English"
+    board.Adornee = source.Adornee
+    board.Size = UDim2.fromOffset(280,55)
+    board.StudsOffset = Vector3.new(0,-2,0)
+    board.AlwaysOnTop = true
+    board.Parent = gui
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.fromScale(1,1)
+    label.BackgroundColor3 = Color3.fromRGB(15,15,20)
+    label.BackgroundTransparency = 0.1
+    label.TextColor3 = Color3.fromRGB(100,255,150)
+    label.TextWrapped = true
+    label.TextScaled = true
+    label.Font = Enum.Font.GothamBold
+    label.Text = "Translating..."
+    label.Parent = board
+
+    return {
+        gui = board,
+        label = label,
+        original = ""
+    }
+end
+
+-- SCAN
+
+local function scanPlayer()
+    if not selectionEnabled then return end
+
+    local player = selected
+    if not player or not player.Character then return end
+
+    for _,obj in ipairs(player.Character:GetDescendants()) do
+        if obj:IsA("BillboardGui")
+        and obj.Name ~= "ST3R_English"
+        and obj.Enabled then
+
+            local parts = {}
+
+            for _,child in ipairs(obj:GetDescendants()) do
+                if child:IsA("TextLabel")
+                or child:IsA("TextButton")
+                or child:IsA("TextBox") then
+
+                    if child.Visible and child.Text ~= "" then
+                        table.insert(parts,child.Text)
+                    end
+                end
+            end
+
+            local phrase = table.concat(parts," ")
+
+            if phrase ~= "" and #phrase < 450 then
+                local entry = translations[obj]
+
+                if not entry then
+                    entry = makeLabel(obj)
+                    if entry then translations[obj] = entry end
+                end
+
+                if entry and entry.original ~= phrase
+                and not active[obj] then
+
+                    entry.original = phrase
+                    entry.label.Text = "Translating..."
+                    active[obj] = true
+
+                    task.spawn(function()
+                        local result = translate(phrase)
+
+                        if selectionEnabled
+                        and selected == player
+                        and entry.gui.Parent
+                        and entry.original == phrase then
+
+                            entry.label.Text = result or "Translation failed"
+                        end
+
+                        active[obj] = nil
+                    end)
+                end
+            end
+        end
+    end
+end
+
+while gui.Parent do
+    pcall(scanPlayer)
+    task.wait(1)
+end
